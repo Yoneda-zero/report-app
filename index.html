@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>報告書作成アプリ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root {
+    --yellow: #FFFF99;
+    --yellow-dark: #e6e600;
+    --header-bg: #1a3a5c;
+    --header-text: #ffffff;
+    --accent: #2563eb;
+    --accent-light: #dbeafe;
+    --border: #94a3b8;
+    --label-bg: #f1f5f9;
+    --section-header: #1e40af;
+    --section-header-light: #eff6ff;
+    --danger: #dc2626;
+    --success: #16a34a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Meiryo', 'Yu Gothic', sans-serif;
+    background: #f0f4f8;
+    min-height: 100vh;
+  }
+
+  /* ===== アプリヘッダー ===== */
+  .app-header {
+    background: var(--header-bg);
+    color: white;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .app-header h1 { font-size: 17px; font-weight: bold; }
+  .app-header .company-name { font-size: 11px; opacity: 0.8; margin-top: 2px; }
+
+  /* ===== 種別選択タブ ===== */
+  .type-tabs {
+    display: flex;
+    background: white;
+    border-bottom: 2px solid var(--accent);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .type-tab {
+    flex: 1;
+    min-width: 90px;
+    padding: 12px 6px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: #64748b;
+    border-bottom: 3px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .type-tab.active {
+    color: var(--accent);
+    border-bottom: 3px solid var(--accent);
+    background: var(--accent-light);
+  }
+  .type-tab .tab-icon { font-size: 18px; display: block; margin-bottom: 3px; }
+
+  /* ===== フォームコンテナ ===== */
+  .form-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 16px;
+  }
+
+  /* ===== セクション ===== */
+  .section {
+    background: white;
+    border-radius: 10px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+  }
+  .section-header {
+    background: var(--section-header);
+    color: white;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-body { padding: 14px; }
+
+  /* ===== フォーム行 ===== */
+  .form-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 140px;
+  }
+  .form-group.full { flex: 100%; min-width: 100%; }
+  .form-group label {
+    font-size: 11px;
+    font-weight: bold;
+    color: #475569;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .form-group label .required {
+    color: var(--danger);
+    font-size: 10px;
+  }
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    background: var(--yellow);
+    border: 1.5px solid #ccc;
+    border-radius: 5px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    width: 100%;
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus,
+  .form-group select:focus,
+  .form-group textarea:focus {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+  }
+  .form-group textarea { resize: vertical; min-height: 80px; }
+  .form-group .static-field {
+    background: var(--label-bg);
+    border: 1.5px solid #e2e8f0;
+    border-radius: 5px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #1e293b;
+  }
+
+  /* ===== ラジオボタングループ ===== */
+  .radio-group {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 8px 0;
+  }
+  .radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: normal !important;
+    color: #334155 !important;
+    cursor: pointer;
+  }
+  .radio-group input[type="radio"] {
+    width: auto;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  /* ===== 被害品テーブル ===== */
+  .damage-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .damage-table th {
+    background: var(--section-header);
+    color: white;
+    padding: 8px 6px;
+    text-align: center;
+    font-size: 11px;
+    border: 1px solid #1e3a8a;
+  }
+  .damage-table td {
+    border: 1px solid #cbd5e1;
+    padding: 4px;
+  }
+  .damage-table td input {
+    background: var(--yellow);
+    border: none;
+    padding: 5px;
+    width: 100%;
+    font-size: 12px;
+    border-radius: 3px;
+  }
+  .damage-table td input:focus {
+    outline: 1px solid var(--accent);
+  }
+  .add-row-btn {
+    margin-top: 8px;
+    padding: 6px 12px;
+    background: var(--accent-light);
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+
+  /* ===== 写真セクション ===== */
+  .photo-area {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .photo-thumb {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid #e2e8f0;
+  }
+  .photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .photo-thumb .delete-photo {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    background: rgba(220,38,38,0.85);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .photo-add-btn {
+    aspect-ratio: 1;
+    border: 2.5px dashed var(--accent);
+    border-radius: 8px;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 28px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+  }
+  .photo-add-btn:hover { background: #bfdbfe; }
+  .photo-add-btn.disabled {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    color: #94a3b8;
+    cursor: not-allowed;
+  }
+  .photo-count {
+    font-size: 12px;
+    color: #64748b;
+    margin-bottom: 8px;
+  }
+  .camera-input { display: none; }
+
+  /* ===== 種別固有セクション ===== */
+  .type-section { display: none; }
+  .type-section.show { display: block; }
+
+  /* ===== ボタンエリア ===== */
+  .btn-area {
+    padding: 16px;
+    background: white;
+    border-top: 1px solid #e2e8f0;
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: 10px;
+  }
+  .btn-pdf {
+    flex: 2;
+    padding: 14px;
+    background: var(--header-bg);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-pdf:hover { background: #0f2744; }
+  .btn-reset {
+    flex: 1;
+    padding: 14px;
+    background: white;
+    color: var(--danger);
+    border: 2px solid var(--danger);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  .btn-reset:hover { background: #fee2e2; }
+
+  /* ===== PDF用テンプレート（非表示） ===== */
+  #pdf-template {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    width: 794px;
+    background: white;
+    padding: 30px 35px;
+    font-family: 'Meiryo', 'Yu Gothic', 'MS Gothic', sans-serif;
+    font-size: 11pt;
+    color: #000;
+  }
+  .pdf-company {
+    font-size: 13pt;
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+  .pdf-meta-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .pdf-meta-row span { font-size: 11pt; }
+  .pdf-title-row {
+    display: flex;
+    align-items: center;
+    margin: 10px 0 14px;
+    border: 2px solid #000;
+    padding: 8px 12px;
+  }
+  .pdf-title-label { font-size: 13pt; font-weight: bold; margin-right: 20px; }
+  .pdf-title-value { font-size: 16pt; font-weight: bold; }
+  .pdf-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+  }
+  .pdf-table th, .pdf-table td {
+    border: 1.5px solid #000;
+    padding: 6px 10px;
+    font-size: 10.5pt;
+    vertical-align: top;
+  }
+  .pdf-table .label-cell {
+    background: #f0f0f0;
+    font-weight: bold;
+    white-space: nowrap;
+    width: 120px;
+  }
+  .pdf-table .value-cell {
+    background: var(--yellow);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .pdf-section-title {
+    background: #1a3a5c;
+    color: white;
+    font-weight: bold;
+    font-size: 11pt;
+    padding: 5px 10px;
+    margin-top: 12px;
+    margin-bottom: 0;
+  }
+  .pdf-damage-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0;
+  }
+  .pdf-damage-table th {
+    background: #d0d8e8;
+    border: 1.5px solid #000;
+    padding: 5px 8px;
+    font-size: 10pt;
+    font-weight: bold;
+    text-align: center;
+  }
+  .pdf-damage-table td {
+    border: 1.5px solid #000;
+    padding: 5px 8px;
+    background: var(--yellow);
+    font-size: 10pt;
+    min-height: 22px;
+  }
+  .pdf-photos-section { margin-top: 14px; }
+  .pdf-photos-title {
+    background: #1a3a5c;
+    color: white;
+    font-weight: bold;
+    padding: 5px 10px;
+    margin-bottom: 8px;
+  }
+  .pdf-photos-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+  }
+  .pdf-photo-item { position: relative; }
+  .pdf-photo-item img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border: 1.5px solid #000;
+  }
+  .pdf-photo-num {
+    font-size: 9pt;
+    text-align: center;
+    margin-top: 2px;
+  }
+  .pdf-specific-section { margin-top: 12px; }
+
+  /* ===== ローディングオーバーレイ ===== */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 9999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+    gap: 16px;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid rgba(255,255,255,0.3);
+    border-top: 5px solid white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ===== レスポンシブ ===== */
+  @media (max-width: 480px) {
+    .form-container { padding: 10px; }
+    .form-group { min-width: 100%; }
+    .photo-area { grid-template-columns: repeat(4, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<!-- アプリヘッダー -->
+<div class="app-header">
+  <div>
+    <div class="app-header h1" style="font-size:17px;font-weight:bold;">📋 報告書作成アプリ</div>
+    <div class="company-name" id="header-company">株式会社 ゼロエミッション</div>
+  </div>
+  <div style="font-size:11px;opacity:0.7;text-align:right;">ver 1.0</div>
+</div>
+
+<!-- 種別タブ -->
+<div class="type-tabs">
+  <button class="type-tab active" onclick="switchType('accident')" id="tab-accident">
+    <span class="tab-icon">⚠️</span>事故報告書
+  </button>
+  <button class="type-tab" onclick="switchType('incident')" id="tab-incident">
+    <span class="tab-icon">🚨</span>事件報告書
+  </button>
+  <button class="type-tab" onclick="switchType('claim')" id="tab-claim">
+    <span class="tab-icon">💬</span>クレーム報告書
+  </button>
+</div>
+
+<!-- フォームコンテナ -->
+<div class="form-container">
+
+  <!-- ===== 基本情報 ===== -->
+  <div class="section">
+    <div class="section-header">🏢 基本情報</div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>会社名</label>
+          <div class="static-field" id="company-display">株式会社 ゼロエミッション</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>報告日 <span class="required">*</span></label>
+          <input type="date" id="report-date">
+        </div>
+        <div class="form-group full" style="flex:100%;min-width:100%;">
+          <label>表題　<span style="font-size:10px;font-weight:normal;color:#64748b;">（種別は自動 ／ 内容を手入力してください）</span></label>
+          <div style="display:flex;align-items:center;gap:0;border:1.5px solid #ccc;border-radius:5px;overflow:hidden;background:var(--yellow);">
+            <input type="text" id="title-sub" placeholder="例：搬出時のお客様宅床・壁損傷" style="flex:1;border:none;background:var(--yellow);padding:8px 10px;font-size:13px;font-family:inherit;outline:none;">
+            <div id="title-display" style="background:#e2e8f0;color:#1e3a5f;font-weight:bold;font-size:13px;padding:8px 12px;white-space:nowrap;border-left:1.5px solid #ccc;">事故報告書</div>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>店舗名 <span class="required">*</span></label>
+          <input type="text" id="store-name" placeholder="例：渋谷店">
+        </div>
+        <div class="form-group">
+          <label>報告者名 <span class="required">*</span></label>
+          <input type="text" id="reporter-name" placeholder="例：山田 太郎">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>所属・部署</label>
+          <input type="text" id="department" placeholder="例：営業部">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 発生情報 ===== -->
+  <div class="section">
+    <div class="section-header">🕐 発生情報</div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>発生日時 <span class="required">*</span></label>
+          <input type="datetime-local" id="incident-datetime">
+        </div>
+        <div class="form-group">
+          <label>発生場所 <span class="required">*</span></label>
+          <input type="text" id="incident-place" placeholder="例：1階 レジ付近">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>発生状況（詳細） <span class="required">*</span></label>
+          <textarea id="incident-detail" rows="5" placeholder="発生の経緯・状況を詳しく記述してください"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 事故固有セクション ===== -->
+  <div class="type-section show" id="section-accident">
+    <div class="section">
+      <div class="section-header">🏥 人的・物的被害</div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>負傷者の有無</label>
+            <div class="radio-group">
+              <label><input type="radio" name="injured" value="なし" checked> なし</label>
+              <label><input type="radio" name="injured" value="あり"> あり</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>警察への届出</label>
+            <div class="radio-group">
+              <label><input type="radio" name="police" value="なし" checked> なし</label>
+              <label><input type="radio" name="police" value="あり"> あり</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>救急への連絡</label>
+            <div class="radio-group">
+              <label><input type="radio" name="ambulance" value="なし" checked> なし</label>
+              <label><input type="radio" name="ambulance" value="あり"> あり</label>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>負傷者情報（氏名・状況など）</label>
+            <textarea id="injured-info" rows="2" placeholder="負傷がある場合、氏名・症状・搬送先などを記入"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-header">📦 被害品</div>
+      <div class="section-body">
+        <div style="overflow-x:auto;">
+          <table class="damage-table" id="damage-table-accident">
+            <thead>
+              <tr>
+                <th style="width:40%">被害品名</th>
+                <th style="width:30%">シリアル№</th>
+                <th style="width:20%">被害額</th>
+                <th style="width:10%"></th>
+              </tr>
+            </thead>
+            <tbody id="damage-body-accident">
+              <tr>
+                <td><input type="text" placeholder="品名を入力"></td>
+                <td><input type="text" placeholder="シリアル番号"></td>
+                <td><input type="text" placeholder="¥"></td>
+                <td style="text-align:center;"><button onclick="removeRow(this)" style="background:none;border:none;color:#dc2626;font-size:16px;cursor:pointer;">✕</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <button class="add-row-btn" onclick="addRow('accident')">＋ 行を追加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 事件固有セクション ===== -->
+  <div class="type-section" id="section-incident">
+    <div class="section">
+      <div class="section-header">🔍 事件詳細</div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>被害総額</label>
+            <input type="text" id="total-damage" placeholder="例：¥50,000">
+          </div>
+          <div class="form-group">
+            <label>警察受理番号</label>
+            <input type="text" id="police-number" placeholder="例：第○○号">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>容疑者・関係者情報（特徴・氏名など）</label>
+            <textarea id="suspect-info" rows="3" placeholder="判明している特徴・情報を記入"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-header">📦 被害品</div>
+      <div class="section-body">
+        <div style="overflow-x:auto;">
+          <table class="damage-table" id="damage-table-incident">
+            <thead>
+              <tr>
+                <th style="width:40%">被害品名</th>
+                <th style="width:30%">シリアル№</th>
+                <th style="width:20%">被害額</th>
+                <th style="width:10%"></th>
+              </tr>
+            </thead>
+            <tbody id="damage-body-incident">
+              <tr>
+                <td><input type="text" placeholder="品名を入力"></td>
+                <td><input type="text" placeholder="シリアル番号"></td>
+                <td><input type="text" placeholder="¥"></td>
+                <td style="text-align:center;"><button onclick="removeRow(this)" style="background:none;border:none;color:#dc2626;font-size:16px;cursor:pointer;">✕</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <button class="add-row-btn" onclick="addRow('incident')">＋ 行を追加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== クレーム固有セクション ===== -->
+  <div class="type-section" id="section-claim">
+    <div class="section">
+      <div class="section-header">💬 クレーム詳細</div>
+      <div class="section-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>クレームの種類</label>
+            <select id="claim-type">
+              <option value="接客態度">接客態度</option>
+              <option value="商品不良">商品不良</option>
+              <option value="サービス">サービス</option>
+              <option value="価格・金銭">価格・金銭</option>
+              <option value="衛生・環境">衛生・環境</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>対応担当者</label>
+            <input type="text" id="handler-name" placeholder="例：鈴木 花子">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>顧客氏名</label>
+            <input type="text" id="customer-name" placeholder="例：田中 一郎（任意）">
+          </div>
+          <div class="form-group">
+            <label>顧客連絡先</label>
+            <input type="text" id="customer-contact" placeholder="例：090-XXXX-XXXX">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>対応内容</label>
+            <textarea id="claim-response" rows="3" placeholder="顧客への対応内容を記入"></textarea>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full">
+            <label>対応結果・顧客の反応</label>
+            <textarea id="claim-result" rows="2" placeholder="クレームの解決状況・顧客の反応を記入"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 原因・対策 ===== -->
+  <div class="section">
+    <div class="section-header">🔎 原因・対策</div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>発生の原因</label>
+          <textarea id="cause" rows="3" placeholder="発生原因を分析して記入"></textarea>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>今後の対策・再発防止策</label>
+          <textarea id="countermeasure" rows="3" placeholder="再発防止のための対策を記入"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 備考 ===== -->
+  <div class="section">
+    <div class="section-header">📝 備考</div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <textarea id="notes" rows="3" placeholder="その他、特記事項があれば記入"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 写真添付 ===== -->
+  <div class="section">
+    <div class="section-header">📷 写真添付（最大10枚）</div>
+    <div class="section-body">
+      <div class="photo-count" id="photo-count">0 / 10 枚</div>
+      <div class="photo-area" id="photo-area">
+        <div class="photo-add-btn" id="photo-add-btn" onclick="triggerCamera()">＋</div>
+      </div>
+      <input type="file" accept="image/*" capture="environment" class="camera-input" id="camera-input" multiple onchange="handlePhotos(event)">
+      <div style="font-size:11px;color:#94a3b8;margin-top:6px;">
+        📌 カメラで撮影またはギャラリーから選択できます
+      </div>
+    </div>
+  </div>
+
+  <div style="height: 80px;"></div>
+</div>
+
+<!-- 固定ボタン -->
+<div class="btn-area">
+  <button class="btn-reset" onclick="resetForm()">🗑 リセット</button>
+  <button class="btn-pdf" onclick="generatePDF()">📄 PDF出力</button>
+</div>
+
+<!-- ローディング -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div>PDF生成中...</div>
+  <div style="font-size:12px;opacity:0.8;">しばらくお待ちください</div>
+</div>
+
+<!-- PDF用テンプレート（非表示） -->
+<div id="pdf-template"></div>
+
+<script>
+// ===== 状態管理 =====
+let currentType = 'accident';
+let photos = []; // {dataUrl, name}
+
+const TYPE_TITLES = {
+  accident: '事故報告書',
+  incident: '事件報告書',
+  claim:    'クレーム報告書'
+};
+
+// ===== 初期化 =====
+window.onload = () => {
+  // 今日の日付をセット
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('report-date').value = today;
+};
+
+// ===== タブ切替 =====
+function switchType(type) {
+  currentType = type;
+  ['accident','incident','claim'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t===type);
+    document.getElementById('section-'+t).classList.toggle('show', t===type);
+  });
+  document.getElementById('title-display').textContent = TYPE_TITLES[type];
+  document.getElementById('title-sub').placeholder =
+    type === 'accident' ? '例：搬出時のお客様宅床・壁損傷' :
+    type === 'incident' ? '例：万引き・不審者侵入' :
+    '例：接客態度に関するクレーム';
+}
+
+// ===== 被害品行追加 =====
+function addRow(type) {
+  const tbody = document.getElementById('damage-body-'+type);
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" placeholder="品名を入力"></td>
+    <td><input type="text" placeholder="シリアル番号"></td>
+    <td><input type="text" placeholder="¥"></td>
+    <td style="text-align:center;"><button onclick="removeRow(this)" style="background:none;border:none;color:#dc2626;font-size:16px;cursor:pointer;">✕</button></td>
+  `;
+  tbody.appendChild(tr);
+}
+
+function removeRow(btn) {
+  const row = btn.closest('tr');
+  const tbody = row.parentElement;
+  if (tbody.rows.length > 1) row.remove();
+}
+
+// ===== 写真処理 =====
+function triggerCamera() {
+  if (photos.length >= 10) return;
+  document.getElementById('camera-input').click();
+}
+
+function handlePhotos(event) {
+  const files = Array.from(event.target.files);
+  const remaining = 10 - photos.length;
+  const toAdd = files.slice(0, remaining);
+  
+  let loaded = 0;
+  toAdd.forEach((file, i) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      photos.push({ dataUrl: e.target.result, name: `写真${photos.length + 1}` });
+      loaded++;
+      if (loaded === toAdd.length) renderPhotos();
+    };
+    reader.readAsDataURL(file);
+  });
+  event.target.value = '';
+}
+
+function renderPhotos() {
+  const area = document.getElementById('photo-area');
+  area.innerHTML = '';
+  
+  photos.forEach((photo, idx) => {
+    const div = document.createElement('div');
+    div.className = 'photo-thumb';
+    div.innerHTML = `
+      <img src="${photo.dataUrl}" alt="写真${idx+1}">
+      <button class="delete-photo" onclick="deletePhoto(${idx})">✕</button>
+    `;
+    area.appendChild(div);
+  });
+
+  if (photos.length < 10) {
+    const addBtn = document.createElement('div');
+    addBtn.className = 'photo-add-btn';
+    addBtn.innerHTML = '＋';
+    addBtn.onclick = triggerCamera;
+    area.appendChild(addBtn);
+  }
+
+  document.getElementById('photo-count').textContent = `${photos.length} / 10 枚`;
+}
+
+function deletePhoto(idx) {
+  photos.splice(idx, 1);
+  photos.forEach((p, i) => p.name = `写真${i+1}`);
+  renderPhotos();
+}
+
+// ===== 被害品データ取得 =====
+function getDamageRows(type) {
+  const tbody = document.getElementById('damage-body-'+type);
+  const rows = [];
+  Array.from(tbody.rows).forEach(row => {
+    const inputs = row.querySelectorAll('input');
+    const name = inputs[0].value.trim();
+    const serial = inputs[1].value.trim();
+    const amount = inputs[2].value.trim();
+    if (name || serial || amount) rows.push({ name, serial, amount });
+  });
+  return rows;
+}
+
+// ===== ラジオ値取得 =====
+function getRadio(name) {
+  const el = document.querySelector(`input[name="${name}"]:checked`);
+  return el ? el.value : '';
+}
+
+// ===== バリデーション =====
+function validate() {
+  const required = [
+    { id: 'report-date', label: '報告日' },
+    { id: 'store-name', label: '店舗名' },
+    { id: 'reporter-name', label: '報告者名' },
+    { id: 'incident-datetime', label: '発生日時' },
+    { id: 'incident-place', label: '発生場所' },
+    { id: 'incident-detail', label: '発生状況' },
+  ];
+  for (const f of required) {
+    if (!document.getElementById(f.id).value.trim()) {
+      alert(`「${f.label}」は必須項目です。`);
+      document.getElementById(f.id).focus();
+      return false;
+    }
+  }
+  return true;
+}
+
+// ===== リセット =====
+function resetForm() {
+  if (!confirm('入力内容をすべてリセットしますか？')) return;
+  document.querySelectorAll('input[type="text"], input[type="datetime-local"], textarea, select').forEach(el => {
+    if (el.type === 'date') return;
+    el.value = '';
+  });
+  document.querySelectorAll('input[type="radio"]').forEach(el => {
+    if (['なし','なし','なし'].includes(el.value)) el.checked = true;
+  });
+  // ラジオを「なし」にリセット
+  ['injured','police','ambulance'].forEach(name => {
+    const radios = document.querySelectorAll(`input[name="${name}"]`);
+    radios.forEach(r => r.checked = (r.value === 'なし'));
+  });
+  photos = [];
+  renderPhotos();
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('report-date').value = today;
+}
+
+// ===== PDF生成 =====
+async function generatePDF() {
+  if (!validate()) return;
+
+  document.getElementById('loading').classList.add('show');
+  await new Promise(r => setTimeout(r, 100));
+
+  try {
+    const company = '株式会社 ゼロエミッション';
+    const reportDate = document.getElementById('report-date').value;
+    const storeName = document.getElementById('store-name').value;
+    const reporterName = document.getElementById('reporter-name').value;
+    const department = document.getElementById('department').value;
+    const titleSub = document.getElementById('title-sub').value.trim();
+    const title = titleSub ? `${titleSub} ${TYPE_TITLES[currentType]}` : TYPE_TITLES[currentType];
+    const incidentDt = document.getElementById('incident-datetime').value.replace('T', ' ');
+    const incidentPlace = document.getElementById('incident-place').value;
+    const incidentDetail = document.getElementById('incident-detail').value;
+    const cause = document.getElementById('cause').value;
+    const countermeasure = document.getElementById('countermeasure').value;
+    const notes = document.getElementById('notes').value;
+
+    // 種別固有データ
+    let specificHTML = '';
+    if (currentType === 'accident') {
+      const injured = getRadio('injured');
+      const police = getRadio('police');
+      const ambulance = getRadio('ambulance');
+      const injuredInfo = document.getElementById('injured-info').value;
+      const damageRows = getDamageRows('accident');
+      specificHTML = buildAccidentSpecific(injured, police, ambulance, injuredInfo, damageRows);
+    } else if (currentType === 'incident') {
+      const totalDamage = document.getElementById('total-damage').value;
+      const policeNum = document.getElementById('police-number').value;
+      const suspectInfo = document.getElementById('suspect-info').value;
+      const damageRows = getDamageRows('incident');
+      specificHTML = buildIncidentSpecific(totalDamage, policeNum, suspectInfo, damageRows);
+    } else {
+      const claimType = document.getElementById('claim-type').value;
+      const handler = document.getElementById('handler-name').value;
+      const custName = document.getElementById('customer-name').value;
+      const custContact = document.getElementById('customer-contact').value;
+      const claimResp = document.getElementById('claim-response').value;
+      const claimResult = document.getElementById('claim-result').value;
+      specificHTML = buildClaimSpecific(claimType, handler, custName, custContact, claimResp, claimResult);
+    }
+
+    // ===== 本文HTML（写真なし） =====
+    const mainHTML = `
+      <div style="font-family:'Meiryo','Yu Gothic','MS Gothic',sans-serif;color:#000;background:white;padding:30px 35px;width:730px;">
+        <div style="font-size:14pt;font-weight:bold;margin-bottom:6px;">${company}</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="font-size:11pt;">店舗名：<strong>${storeName}</strong>　所属：${department || '―'}</span>
+          <span style="font-size:11pt;">報告日：<strong>${reportDate}</strong></span>
+        </div>
+        <div style="display:flex;align-items:center;margin:10px 0 14px;border:2.5px solid #1a3a5c;padding:8px 16px;background:#f0f4f8;">
+          <span style="font-size:12pt;font-weight:bold;margin-right:16px;color:#1a3a5c;">表題：</span>
+          <span style="font-size:18pt;font-weight:bold;color:#1a3a5c;">${title}</span>
+          <span style="margin-left:auto;font-size:11pt;">報告者：<strong>${reporterName}</strong></span>
+        </div>
+        <div style="background:#1a3a5c;color:white;font-weight:bold;padding:5px 10px;margin-bottom:0;">発生情報</div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+          <tr>
+            <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:90px;white-space:nowrap;">発生日時</td>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${incidentDt}</td>
+            <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:90px;white-space:nowrap;">発生場所</td>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${incidentPlace}</td>
+          </tr>
+          <tr>
+            <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;vertical-align:top;">発生状況</td>
+            <td colspan="3" style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;white-space:pre-wrap;word-break:break-all;min-height:60px;">${incidentDetail}</td>
+          </tr>
+        </table>
+        ${specificHTML}
+        <div style="background:#1a3a5c;color:white;font-weight:bold;padding:5px 10px;margin-top:10px;margin-bottom:0;">原因・対策</div>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+          <tr>
+            <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:90px;white-space:nowrap;vertical-align:top;">発生の原因</td>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;white-space:pre-wrap;word-break:break-all;min-height:50px;">${cause || '―'}</td>
+          </tr>
+          <tr>
+            <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;vertical-align:top;white-space:nowrap;">再発防止策</td>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;white-space:pre-wrap;word-break:break-all;min-height:50px;">${countermeasure || '―'}</td>
+          </tr>
+          <tr>
+            <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;vertical-align:top;">備考</td>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;white-space:pre-wrap;word-break:break-all;min-height:40px;">${notes || '―'}</td>
+          </tr>
+        </table>
+      </div>
+    `;
+
+    // ===== 写真HTML（分離） =====
+    const photosOnlyHTML = photos.length > 0 ? `
+      <div style="font-family:'Meiryo','Yu Gothic','MS Gothic',sans-serif;color:#000;background:white;padding:20px 35px;width:730px;">
+        <div style="background:#1a3a5c;color:white;font-weight:bold;padding:6px 12px;margin-bottom:12px;font-size:12pt;">📷 写真添付（${photos.length}枚）</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">
+          ${photos.map((p,i) => `
+            <div style="text-align:center;">
+              <img src="${p.dataUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;border:1.5px solid #333;display:block;">
+              <div style="font-size:9pt;margin-top:3px;">写真 ${i+1}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : '';
+
+    // ===== HTMLをDOMに挿入してcanvasに変換 =====
+    const tmpl = document.getElementById('pdf-template');
+    const h2cOpts = { scale: 2, useCORS: true, allowTaint: true, backgroundColor: '#ffffff', logging: false };
+
+    // 本文レンダリング
+    tmpl.innerHTML = mainHTML;
+    tmpl.style.display = 'block';
+    await new Promise(r => setTimeout(r, 200));
+    const mainCanvas = await html2canvas(tmpl, h2cOpts);
+
+    // 写真レンダリング
+    let photosCanvas = null;
+    if (photos.length > 0) {
+      tmpl.innerHTML = photosOnlyHTML;
+      await new Promise(r => setTimeout(r, 200));
+      photosCanvas = await html2canvas(tmpl, h2cOpts);
+    }
+    tmpl.style.display = 'none';
+
+    // ===== PDF組み立て =====
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = pdf.internal.pageSize.getHeight();
+    const margin = 10;
+    const contentW = pdfW - margin * 2;
+    const xOff = (pdfW - contentW) / 2;
+
+    // -- 本文をページに配置（複数ページ対応）--
+    const mainImgData = mainCanvas.toDataURL('image/jpeg', 0.95);
+    const mainPdfH = contentW * (mainCanvas.height / mainCanvas.width);
+    const pageContentH = pdfH - margin * 2;
+    let currentY = margin; // 現在のY座標（mm）
+
+    if (mainPdfH <= pageContentH) {
+      // 1ページに収まる
+      pdf.addImage(mainImgData, 'JPEG', xOff, currentY, contentW, mainPdfH);
+      currentY += mainPdfH;
+    } else {
+      // 本文が複数ページにまたがる場合
+      const pageHeightPx = mainCanvas.width * (pageContentH / contentW);
+      let drawnPx = 0;
+      while (drawnPx < mainCanvas.height) {
+        if (drawnPx > 0) { pdf.addPage(); currentY = margin; }
+        const sliceH = Math.min(pageHeightPx, mainCanvas.height - drawnPx);
+        const sc = document.createElement('canvas');
+        sc.width = mainCanvas.width; sc.height = sliceH;
+        const ctx = sc.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0,0,sc.width,sc.height);
+        ctx.drawImage(mainCanvas, 0, -drawnPx);
+        const slicePdfH = contentW * (sliceH / mainCanvas.width);
+        pdf.addImage(sc.toDataURL('image/jpeg',0.95), 'JPEG', xOff, currentY, contentW, slicePdfH);
+        currentY += slicePdfH;
+        drawnPx += sliceH;
+      }
+    }
+
+    // -- 写真を配置 --
+    if (photosCanvas) {
+      const photosPdfH = contentW * (photosCanvas.height / photosCanvas.width);
+      const remainingH = pdfH - currentY - margin;
+
+      if (remainingH < photosPdfH) {
+        // 残りスペースに収まらない → 新しいページへ
+        pdf.addPage();
+        currentY = margin;
+      }
+      // 写真を1ページに収める（写真セクションはページ内で完結）
+      const photosImgData = photosCanvas.toDataURL('image/jpeg', 0.95);
+      if (photosPdfH <= pageContentH) {
+        pdf.addImage(photosImgData, 'JPEG', xOff, currentY, contentW, photosPdfH);
+      } else {
+        // 写真が非常に多い場合（11枚以上は想定外だが念のため）
+        const photoPagePx = photosCanvas.width * (pageContentH / contentW);
+        let pdrawnPx = 0;
+        while (pdrawnPx < photosCanvas.height) {
+          if (pdrawnPx > 0) { pdf.addPage(); currentY = margin; }
+          const sliceH = Math.min(photoPagePx, photosCanvas.height - pdrawnPx);
+          const sc = document.createElement('canvas');
+          sc.width = photosCanvas.width; sc.height = sliceH;
+          const ctx = sc.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0,0,sc.width,sc.height);
+          ctx.drawImage(photosCanvas, 0, -pdrawnPx);
+          const slicePdfH = contentW * (sliceH / photosCanvas.width);
+          pdf.addImage(sc.toDataURL('image/jpeg',0.95), 'JPEG', xOff, currentY, contentW, slicePdfH);
+          currentY += slicePdfH;
+          pdrawnPx += sliceH;
+        }
+      }
+    }
+
+    const filename = `${title}_${storeName}_${reportDate}.pdf`;
+    pdf.save(filename);
+
+  } catch(e) {
+    console.error(e);
+    alert('PDF生成中にエラーが発生しました。\n' + e.message);
+  } finally {
+    document.getElementById('loading').classList.remove('show');
+  }
+}
+
+// ===== PDF種別固有HTML =====
+function buildAccidentSpecific(injured, police, ambulance, injuredInfo, damageRows) {
+  return `
+    <div style="background:#1a3a5c;color:white;font-weight:bold;padding:5px 10px;margin-top:10px;margin-bottom:0;">人的・物的被害</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+      <tr>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:100px;white-space:nowrap;">負傷者の有無</td>
+        <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${injured}</td>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:100px;white-space:nowrap;">警察への届出</td>
+        <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${police}</td>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:80px;white-space:nowrap;">救急連絡</td>
+        <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${ambulance}</td>
+      </tr>
+      <tr>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;vertical-align:top;">負傷者情報</td>
+        <td colspan="5" style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;white-space:pre-wrap;min-height:36px;">${injuredInfo || '―'}</td>
+      </tr>
+    </table>
+    ${buildDamageTable(damageRows)}
+  `;
+}
+
+function buildIncidentSpecific(totalDamage, policeNum, suspectInfo, damageRows) {
+  return `
+    <div style="background:#1a3a5c;color:white;font-weight:bold;padding:5px 10px;margin-top:10px;margin-bottom:0;">事件詳細</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+      <tr>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:100px;white-space:nowrap;">被害総額</td>
+        <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${totalDamage || '―'}</td>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:110px;white-space:nowrap;">警察受理番号</td>
+        <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${policeNum || '―'}</td>
+      </tr>
+      <tr>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;vertical-align:top;">容疑者・関係者</td>
+        <td colspan="3" style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;white-space:pre-wrap;min-height:36px;">${suspectInfo || '―'}</td>
+      </tr>
+    </table>
+    ${buildDamageTable(damageRows)}
+  `;
+}
+
+function buildClaimSpecific(claimType, handler, custName, custContact, claimResp, claimResult) {
+  return `
+    <div style="background:#1a3a5c;color:white;font-weight:bold;padding:5px 10px;margin-top:10px;margin-bottom:0;">クレーム詳細</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+      <tr>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:120px;white-space:nowrap;">クレームの種類</td>
+        <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${claimType}</td>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:100px;white-space:nowrap;">対応担当者</td>
+        <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${handler || '―'}</td>
+      </tr>
+      <tr>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;white-space:nowrap;">顧客氏名</td>
+        <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${custName || '―'}</td>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;white-space:nowrap;">顧客連絡先</td>
+        <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${custContact || '―'}</td>
+      </tr>
+      <tr>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;vertical-align:top;">対応内容</td>
+        <td colspan="3" style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;white-space:pre-wrap;min-height:40px;">${claimResp || '―'}</td>
+      </tr>
+      <tr>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;vertical-align:top;">対応結果</td>
+        <td colspan="3" style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;white-space:pre-wrap;min-height:36px;">${claimResult || '―'}</td>
+      </tr>
+    </table>
+  `;
+}
+
+function buildDamageTable(rows) {
+  if (!rows || rows.length === 0) return '';
+  return `
+    <div style="background:#1a3a5c;color:white;font-weight:bold;padding:5px 10px;margin-top:0;margin-bottom:0;">被害品</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+      <thead>
+        <tr>
+          <th style="background:#d0d8e8;border:1.5px solid #000;padding:5px 8px;font-size:10pt;text-align:center;width:40%;">被害品名</th>
+          <th style="background:#d0d8e8;border:1.5px solid #000;padding:5px 8px;font-size:10pt;text-align:center;width:30%;">シリアル№</th>
+          <th style="background:#d0d8e8;border:1.5px solid #000;padding:5px 8px;font-size:10pt;text-align:center;width:30%;">被害額</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:5px 8px;">${r.name}</td>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:5px 8px;">${r.serial}</td>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:5px 8px;">${r.amount}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+</script>
+</body>
+</html>
