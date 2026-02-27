@@ -6,6 +6,7 @@
 <title>報告書作成アプリ</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 <style>
   :root {
     --yellow: #FFFF99;
@@ -302,18 +303,20 @@
   }
   .btn-pdf {
     flex: 2;
-    padding: 14px;
+    padding: 14px 10px;
     background: var(--header-bg);
     color: white;
     border: none;
     border-radius: 8px;
-    font-size: 15px;
+    font-size: 12px;
     font-weight: bold;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
+    line-height: 1.4;
+    text-align: center;
   }
   .btn-pdf:hover { background: #0f2744; }
   .btn-reset {
@@ -328,6 +331,67 @@
     cursor: pointer;
   }
   .btn-reset:hover { background: #fee2e2; }
+  .btn-share {
+    flex: 1;
+    padding: 14px;
+    background: #16a34a;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .btn-share:hover { background: #15803d; }
+  /* 上長確認モードバナー */
+  #supervisor-banner {
+    display: none;
+    background: #fef9c3;
+    border: 2px solid #eab308;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 12px 16px;
+    font-size: 13px;
+    color: #713f12;
+    font-weight: bold;
+    text-align: center;
+  }
+  /* 共有リンクモーダル */
+  #share-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+  }
+  #share-modal.show { display: flex; }
+  #share-modal-inner {
+    background: white;
+    border-radius: 14px;
+    padding: 24px 20px;
+    width: 90%;
+    max-width: 420px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  }
+  #share-url-box {
+    width: 100%;
+    padding: 10px;
+    border: 1.5px solid #94a3b8;
+    border-radius: 8px;
+    font-size: 12px;
+    word-break: break-all;
+    background: #f8fafc;
+    margin: 12px 0;
+    min-height: 60px;
+    resize: none;
+    box-sizing: border-box;
+  }
 
   /* ===== PDF用テンプレート（非表示） ===== */
   #pdf-template {
@@ -585,7 +649,7 @@
             </div>
           </div>
           <div class="form-group">
-            <label>救急への連絡</label>
+            <label>修繕業者・サポートオフィスへの連絡</label>
             <div class="radio-group">
               <label><input type="radio" name="ambulance" value="なし" checked> なし</label>
               <label><input type="radio" name="ambulance" value="あり"> あり</label>
@@ -758,6 +822,25 @@
     </div>
   </div>
 
+  <!-- ===== 上長確認 ===== -->
+  <div class="section">
+    <div class="section-header">👔 上長確認</div>
+    <div class="section-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>上長名</label>
+          <input type="text" id="supervisor-name" placeholder="例：山田 太郎">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>上長コメント</label>
+          <textarea id="supervisor-comment" rows="3" placeholder="上長のコメントを記入"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== 写真添付 ===== -->
   <div class="section">
     <div class="section-header">📷 写真添付（最大10枚）</div>
@@ -776,10 +859,31 @@
   <div style="height: 80px;"></div>
 </div>
 
+<!-- 上長確認モードバナー -->
+<div id="supervisor-banner">
+  👔 上長確認モードです。下記の「上長確認」欄にお名前とコメントを入力し、「PDF出力」をタップしてください。<br>
+  📷 写真はLINEで受け取ったものを下の「＋」ボタンから添付してください。
+</div>
+
 <!-- 固定ボタン -->
 <div class="btn-area">
   <button class="btn-reset" onclick="resetForm()">🗑 リセット</button>
-  <button class="btn-pdf" onclick="generatePDF()">📄 PDF出力</button>
+  <button class="btn-share" id="btn-share" onclick="generateShareLink()">📤 上長へ共有</button>
+  <button class="btn-pdf" onclick="generatePDF()">📄 PDFに出力（報告を受けた上長が出力してください）</button>
+</div>
+
+<!-- 共有リンクモーダル -->
+<div id="share-modal">
+  <div id="share-modal-inner">
+    <div style="font-size:16px;font-weight:bold;margin-bottom:8px;">📤 上長への共有リンク</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:4px;">以下のリンクをLINE・メール等で上長に送ってください。<br>※写真は含まれません（上長が開いた際に再添付が必要です）</div>
+    <textarea id="share-url-box" readonly onclick="this.select()"></textarea>
+    <div style="display:flex;gap:10px;margin-top:4px;">
+      <button onclick="copyShareLink()" style="flex:1;padding:12px;background:#2563eb;color:white;border:none;border-radius:8px;font-weight:bold;font-size:14px;cursor:pointer;">📋 コピー</button>
+      <button onclick="closeShareModal()" style="flex:1;padding:12px;background:#f1f5f9;color:#333;border:none;border-radius:8px;font-weight:bold;font-size:14px;cursor:pointer;">閉じる</button>
+    </div>
+    <div id="copy-msg" style="text-align:center;color:#16a34a;font-weight:bold;margin-top:8px;display:none;">✅ コピーしました！</div>
+  </div>
 </div>
 
 <!-- ローディング -->
@@ -980,6 +1084,8 @@ async function generatePDF() {
     const cause = document.getElementById('cause').value;
     const countermeasure = document.getElementById('countermeasure').value;
     const notes = document.getElementById('notes').value;
+    const supervisorName = document.getElementById('supervisor-name').value;
+    const supervisorComment = document.getElementById('supervisor-comment').value;
 
     // 種別固有データ
     let specificHTML = '';
@@ -1049,22 +1155,42 @@ async function generatePDF() {
           </tr>
         </table>
       </div>
+
+      <!-- 上長確認枠 -->
+      <div style="margin-top:18px;border:2px solid #1a3a5c;border-radius:6px;overflow:hidden;">
+        <div style="background:#1a3a5c;color:white;font-weight:bold;padding:6px 14px;font-size:11pt;">👔 上長確認</div>
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;white-space:nowrap;width:100px;">上長名</td>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${supervisorName || '―'}</td>
+          </tr>
+          <tr>
+            <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;vertical-align:top;">コメント</td>
+            <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;white-space:pre-wrap;word-break:break-all;min-height:60px;">${supervisorComment || '―'}</td>
+          </tr>
+        </table>
+      </div>
     `;
 
     // ===== 写真HTML（分離） =====
-    const photosOnlyHTML = photos.length > 0 ? `
-      <div style="font-family:'Meiryo','Yu Gothic','MS Gothic',sans-serif;color:#000;background:white;padding:20px 35px;width:730px;">
-        <div style="background:#1a3a5c;color:white;font-weight:bold;padding:6px 12px;margin-bottom:12px;font-size:12pt;">📷 写真添付（${photos.length}枚）</div>
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">
-          ${photos.map((p,i) => `
-            <div style="text-align:center;">
-              <img src="${p.dataUrl}" style="width:100%;aspect-ratio:1;object-fit:cover;border:1.5px solid #333;display:block;">
-              <div style="font-size:9pt;margin-top:3px;">写真 ${i+1}</div>
-            </div>
-          `).join('')}
+    // ===== 写真HTMLは buildPhotoPageHTML() で分割生成する =====
+
+    // ===== 写真HTML（1ページ4枚・2列×2行） =====
+    function buildPhotoPageHTML(photoSlice, startIdx, total) {
+      return `
+        <div style="font-family:'Meiryo','Yu Gothic','MS Gothic',sans-serif;color:#000;background:white;padding:20px 35px;width:730px;">
+          <div style="background:#1a3a5c;color:white;font-weight:bold;padding:6px 12px;margin-bottom:16px;font-size:12pt;">📷 写真添付（${total}枚）</div>
+          <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;">
+            ${photoSlice.map((p,i) => `
+              <div style="text-align:center;">
+                <img src="${p.dataUrl}" style="width:100%;height:300px;object-fit:cover;border:2px solid #333;display:block;border-radius:4px;">
+                <div style="font-size:10pt;margin-top:6px;font-weight:bold;">写真 ${startIdx + i + 1}</div>
+              </div>
+            `).join('')}
+          </div>
         </div>
-      </div>
-    ` : '';
+      `;
+    }
 
     // ===== HTMLをDOMに挿入してcanvasに変換 =====
     const tmpl = document.getElementById('pdf-template');
@@ -1076,12 +1202,16 @@ async function generatePDF() {
     await new Promise(r => setTimeout(r, 200));
     const mainCanvas = await html2canvas(tmpl, h2cOpts);
 
-    // 写真レンダリング
-    let photosCanvas = null;
+    // 写真レンダリング（1ページ4枚ずつ分割）
+    const photoCanvases = [];
     if (photos.length > 0) {
-      tmpl.innerHTML = photosOnlyHTML;
-      await new Promise(r => setTimeout(r, 200));
-      photosCanvas = await html2canvas(tmpl, h2cOpts);
+      for (let i = 0; i < photos.length; i += 4) {
+        const slice = photos.slice(i, i + 4);
+        tmpl.innerHTML = buildPhotoPageHTML(slice, i, photos.length);
+        await new Promise(r => setTimeout(r, 200));
+        const c = await html2canvas(tmpl, h2cOpts);
+        photoCanvases.push(c);
+      }
     }
     tmpl.style.display = 'none';
 
@@ -1123,38 +1253,18 @@ async function generatePDF() {
       }
     }
 
-    // -- 写真を配置 --
-    if (photosCanvas) {
-      const photosPdfH = contentW * (photosCanvas.height / photosCanvas.width);
+    // -- 写真を配置（1ページ4枚・自動ページ分割）--
+    for (const photoCanvas of photoCanvases) {
+      const photosPdfH = contentW * (photoCanvas.height / photoCanvas.width);
       const remainingH = pdfH - currentY - margin;
-
-      if (remainingH < photosPdfH) {
-        // 残りスペースに収まらない → 新しいページへ
+      // 残りスペースが不足または残り50mm未満なら次ページへ
+      if (remainingH < photosPdfH || remainingH < 50) {
         pdf.addPage();
         currentY = margin;
       }
-      // 写真を1ページに収める（写真セクションはページ内で完結）
-      const photosImgData = photosCanvas.toDataURL('image/jpeg', 0.95);
-      if (photosPdfH <= pageContentH) {
-        pdf.addImage(photosImgData, 'JPEG', xOff, currentY, contentW, photosPdfH);
-      } else {
-        // 写真が非常に多い場合（11枚以上は想定外だが念のため）
-        const photoPagePx = photosCanvas.width * (pageContentH / contentW);
-        let pdrawnPx = 0;
-        while (pdrawnPx < photosCanvas.height) {
-          if (pdrawnPx > 0) { pdf.addPage(); currentY = margin; }
-          const sliceH = Math.min(photoPagePx, photosCanvas.height - pdrawnPx);
-          const sc = document.createElement('canvas');
-          sc.width = photosCanvas.width; sc.height = sliceH;
-          const ctx = sc.getContext('2d');
-          ctx.fillStyle = '#fff'; ctx.fillRect(0,0,sc.width,sc.height);
-          ctx.drawImage(photosCanvas, 0, -pdrawnPx);
-          const slicePdfH = contentW * (sliceH / photosCanvas.width);
-          pdf.addImage(sc.toDataURL('image/jpeg',0.95), 'JPEG', xOff, currentY, contentW, slicePdfH);
-          currentY += slicePdfH;
-          pdrawnPx += sliceH;
-        }
-      }
+      const photosImgData = photoCanvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(photosImgData, 'JPEG', xOff, currentY, contentW, photosPdfH);
+      currentY += photosPdfH;
     }
 
     const filename = `${title}_${storeName}_${reportDate}.pdf`;
@@ -1166,51 +1276,20 @@ async function generatePDF() {
     const isAndroid = /Android/.test(ua);
 
     if (isIOS) {
-      // ===== iOS：Blobで新しいタブに開く =====
-      const pdfBlob = pdf.output('blob');
-      const blobUrl = URL.createObjectURL(pdfBlob);
-      const newTab = window.open(blobUrl, '_blank');
-      if (!newTab) {
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = filename;
-        a.textContent = '📄 PDFをタップして開く';
-        a.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:16px 32px;background:#1a3a5c;color:white;text-align:center;font-size:16px;font-weight:bold;border-radius:10px;text-decoration:none;box-shadow:0 4px 12px rgba(0,0,0,0.3);white-space:nowrap;';
-        document.body.appendChild(a);
-        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 30000);
-      } else {
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-      }
+      // ===== iOS Safari：dataURI で iframe に埋め込み → 印刷/保存ダイアログ =====
+      showIOSPdfViewer(pdf.output('datauristring'), filename);
 
     } else if (isAndroid) {
-      // ===== Android：DataURLでaタグクリック =====
-      try {
-        const pdfBlob = pdf.output('blob');
-        const blobUrl = URL.createObjectURL(pdfBlob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 3000);
-      } catch(e2) {
-        // フォールバック：新しいタブで開く
-        const pdfBlob = pdf.output('blob');
-        const blobUrl = URL.createObjectURL(pdfBlob);
-        const newTab = window.open(blobUrl, '_blank');
-        if (!newTab) {
-          const a = document.createElement('a');
-          a.href = blobUrl;
-          a.download = filename;
-          a.textContent = '📄 PDFをタップして保存';
-          a.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:9999;display:block;padding:16px 32px;background:#1a3a5c;color:white;text-align:center;font-size:16px;font-weight:bold;border-radius:10px;text-decoration:none;box-shadow:0 4px 12px rgba(0,0,0,0.3);white-space:nowrap;';
-          document.body.appendChild(a);
-          setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 30000);
-        } else {
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-        }
-      }
+      // ===== Android Chrome：Blob + a.click() =====
+      const pdfBlob = pdf.output('blob');
+      const blobUrl = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(blobUrl); }, 3000);
 
     } else {
       // ===== PC：通常ダウンロード =====
@@ -1235,7 +1314,7 @@ function buildAccidentSpecific(injured, police, ambulance, injuredInfo, damageRo
         <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${injured}</td>
         <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:100px;white-space:nowrap;">警察への届出</td>
         <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${police}</td>
-        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:80px;white-space:nowrap;">救急連絡</td>
+        <td style="background:#f0f0f0;font-weight:bold;border:1.5px solid #000;padding:6px 10px;width:120px;white-space:nowrap;">修繕・サポートへの連絡</td>
         <td style="background:#FFFF99;border:1.5px solid #000;padding:6px 10px;">${ambulance}</td>
       </tr>
       <tr>
@@ -1318,6 +1397,163 @@ function buildDamageTable(rows) {
     </table>
   `;
 }
+
+// ===== 共有リンク機能 =====
+function collectFormData() {
+  const data = {
+    type: currentType,
+    reportDate: document.getElementById('report-date').value,
+    storeName: document.getElementById('store-name').value,
+    reporterName: document.getElementById('reporter-name').value,
+    department: document.getElementById('department').value,
+    titleSub: document.getElementById('title-sub').value,
+    incidentDatetime: document.getElementById('incident-datetime').value,
+    incidentPlace: document.getElementById('incident-place').value,
+    incidentDetail: document.getElementById('incident-detail').value,
+    cause: document.getElementById('cause').value,
+    countermeasure: document.getElementById('countermeasure').value,
+    notes: document.getElementById('notes').value,
+  };
+  if (currentType === 'accident') {
+    data.injured = getRadio('injured');
+    data.police = getRadio('police');
+    data.ambulance = getRadio('ambulance');
+    data.injuredInfo = document.getElementById('injured-info').value;
+    data.damageRows = getDamageRows('accident');
+  } else if (currentType === 'incident') {
+    data.totalDamage = document.getElementById('total-damage').value;
+    data.policeNum = document.getElementById('police-number').value;
+    data.suspectInfo = document.getElementById('suspect-info').value;
+    data.damageRows = getDamageRows('incident');
+  } else {
+    data.claimType = document.getElementById('claim-type').value;
+    data.handler = document.getElementById('handler-name').value;
+    data.custName = document.getElementById('customer-name').value;
+    data.custContact = document.getElementById('customer-contact').value;
+    data.claimResp = document.getElementById('claim-response').value;
+    data.claimResult = document.getElementById('claim-result').value;
+  }
+  return data;
+}
+
+function generateShareLink() {
+  const data = collectFormData();
+  const json = JSON.stringify(data);
+  const compressed = LZString.compressToEncodedURIComponent(json);
+  const url = location.origin + location.pathname + '?share=' + compressed;
+  document.getElementById('share-url-box').value = url;
+  document.getElementById('share-modal').classList.add('show');
+  document.getElementById('copy-msg').style.display = 'none';
+}
+
+function copyShareLink() {
+  const box = document.getElementById('share-url-box');
+  box.select();
+  try {
+    navigator.clipboard.writeText(box.value).then(() => {
+      document.getElementById('copy-msg').style.display = 'block';
+    });
+  } catch(e) {
+    document.execCommand('copy');
+    document.getElementById('copy-msg').style.display = 'block';
+  }
+}
+
+function closeShareModal() {
+  document.getElementById('share-modal').classList.remove('show');
+}
+
+function restoreFromShareData(data) {
+  switchType(data.type);
+  const fields = [
+    ['report-date', data.reportDate],
+    ['store-name', data.storeName],
+    ['reporter-name', data.reporterName],
+    ['department', data.department],
+    ['title-sub', data.titleSub],
+    ['incident-datetime', data.incidentDatetime],
+    ['incident-place', data.incidentPlace],
+    ['incident-detail', data.incidentDetail],
+    ['cause', data.cause],
+    ['countermeasure', data.countermeasure],
+    ['notes', data.notes],
+  ];
+  fields.forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el && val !== undefined) el.value = val;
+  });
+  if (data.type === 'accident') {
+    setRadio('injured', data.injured);
+    setRadio('police', data.police);
+    setRadio('ambulance', data.ambulance);
+    const ii = document.getElementById('injured-info');
+    if (ii) ii.value = data.injuredInfo || '';
+    if (data.damageRows) restoreDamageRows('accident', data.damageRows);
+  } else if (data.type === 'incident') {
+    const td = document.getElementById('total-damage');
+    const pn = document.getElementById('police-number');
+    const si = document.getElementById('suspect-info');
+    if (td) td.value = data.totalDamage || '';
+    if (pn) pn.value = data.policeNum || '';
+    if (si) si.value = data.suspectInfo || '';
+    if (data.damageRows) restoreDamageRows('incident', data.damageRows);
+  } else {
+    const ct = document.getElementById('claim-type');
+    const hn = document.getElementById('handler-name');
+    const cn = document.getElementById('customer-name');
+    const cc = document.getElementById('customer-contact');
+    const cr = document.getElementById('claim-response');
+    const cre = document.getElementById('claim-result');
+    if (ct) ct.value = data.claimType || '';
+    if (hn) hn.value = data.handler || '';
+    if (cn) cn.value = data.custName || '';
+    if (cc) cc.value = data.custContact || '';
+    if (cr) cr.value = data.claimResp || '';
+    if (cre) cre.value = data.claimResult || '';
+  }
+  const banner = document.getElementById('supervisor-banner');
+  if (banner) banner.style.display = 'block';
+  setTimeout(() => {
+    const sv = document.getElementById('supervisor-name');
+    if (sv) sv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 600);
+}
+
+function setRadio(name, value) {
+  const radios = document.querySelectorAll(`input[name="${name}"]`);
+  radios.forEach(r => { r.checked = (r.value === value); });
+}
+
+function restoreDamageRows(type, rows) {
+  const tbody = document.getElementById(`damage-tbody-${type}`);
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" class="damage-input" placeholder="品名" value="${r.name || ''}"></td>
+      <td><input type="text" class="damage-input" placeholder="シリアル№" value="${r.serial || ''}"></td>
+      <td><input type="text" class="damage-input" placeholder="金額" value="${r.amount || ''}"></td>
+      <td><button onclick="removeDamageRow(this)" style="padding:4px 8px;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;cursor:pointer;color:#dc2626;">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(location.search);
+  const shareData = params.get('share');
+  if (shareData) {
+    try {
+      const json = LZString.decompressFromEncodedURIComponent(shareData);
+      const data = JSON.parse(json);
+      restoreFromShareData(data);
+    } catch(e) {
+      console.warn('共有データの復元に失敗', e);
+    }
+  }
+});
+
 </script>
 </body>
 </html>
