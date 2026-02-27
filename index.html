@@ -878,7 +878,10 @@
     <div style="font-size:16px;font-weight:bold;margin-bottom:8px;">📤 上長への共有リンク</div>
     <div style="font-size:12px;color:#64748b;margin-bottom:4px;">以下のリンクをLINE・メール等で上長に送ってください。<br>※写真は含まれません（上長が開いた際に再添付が必要です）</div>
     <textarea id="share-url-box" readonly onclick="this.select()"></textarea>
-    <div style="display:flex;gap:10px;margin-top:4px;">
+    <!-- URL短縮ボタン -->
+    <button id="btn-shorten" onclick="shortenUrl()" style="width:100%;padding:10px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:bold;font-size:13px;cursor:pointer;margin-top:6px;">🔗 URLを短縮する</button>
+    <div id="shorten-msg" style="text-align:center;font-size:12px;margin-top:4px;display:none;"></div>
+    <div style="display:flex;gap:10px;margin-top:8px;">
       <button onclick="copyShareLink()" style="flex:1;padding:12px;background:#2563eb;color:white;border:none;border-radius:8px;font-weight:bold;font-size:14px;cursor:pointer;">📋 コピー</button>
       <button onclick="closeShareModal()" style="flex:1;padding:12px;background:#f1f5f9;color:#333;border:none;border-radius:8px;font-weight:bold;font-size:14px;cursor:pointer;">閉じる</button>
     </div>
@@ -1444,6 +1447,14 @@ function generateShareLink() {
   document.getElementById('share-url-box').value = url;
   document.getElementById('share-modal').classList.add('show');
   document.getElementById('copy-msg').style.display = 'none';
+  // 短縮ボタンをリセット
+  const btn = document.getElementById('btn-shorten');
+  btn.disabled = false;
+  btn.textContent = '🔗 URLを短縮する';
+  btn.style.background = '#f59e0b';
+  const shortenMsg = document.getElementById('shorten-msg');
+  shortenMsg.style.display = 'none';
+  shortenMsg.textContent = '';
 }
 
 function copyShareLink() {
@@ -1461,6 +1472,66 @@ function copyShareLink() {
 
 function closeShareModal() {
   document.getElementById('share-modal').classList.remove('show');
+}
+
+async function shortenUrl() {
+  const box = document.getElementById('share-url-box');
+  const shortenMsg = document.getElementById('shorten-msg');
+  const btn = document.getElementById('btn-shorten');
+  const longUrl = box.value;
+
+  if (!longUrl) return;
+
+  // 小短縮済みならスキップ
+  if (longUrl.includes('shrtco.de') || longUrl.includes('tinyurl') || longUrl.includes('is.gd')) {
+    shortenMsg.style.display = 'block';
+    shortenMsg.style.color = '#64748b';
+    shortenMsg.textContent = 'ℹ️ すでに短縮済みです';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '短縮中...';
+  shortenMsg.style.display = 'block';
+  shortenMsg.style.color = '#64748b';
+  shortenMsg.textContent = '⏳ URLを短縮しています...';
+
+  try {
+    // shrtco.de APIを使用
+    const res = await fetch(`https://api.shrtco.de/v2/shorten?url=${encodeURIComponent(longUrl)}`);
+    const data = await res.json();
+
+    if (data.ok) {
+      box.value = data.result.full_short_link;
+      shortenMsg.style.color = '#16a34a';
+      shortenMsg.textContent = '✅ URLを短縮しました！';
+      btn.textContent = '✅ 短縮完了';
+      btn.style.background = '#16a34a';
+    } else {
+      throw new Error('短縮失敗');
+    }
+  } catch (e) {
+    // フォールバック：is.gd API
+    try {
+      const res2 = await fetch(`https://is.gd/create.php?format=json&url=${encodeURIComponent(longUrl)}`);
+      const data2 = await res2.json();
+      if (data2.shorturl) {
+        box.value = data2.shorturl;
+        shortenMsg.style.color = '#16a34a';
+        shortenMsg.textContent = '✅ URLを短縮しました！';
+        btn.textContent = '✅ 短縮完了';
+        btn.style.background = '#16a34a';
+      } else {
+        throw new Error('フォールバック失敗');
+      }
+    } catch (e2) {
+      shortenMsg.style.color = '#dc2626';
+      shortenMsg.textContent = '⚠️ 短縮に失敗しました。元のURLをそのままお使いください。';
+      btn.disabled = false;
+      btn.textContent = '🔗 URLを短縮する';
+      btn.style.background = '#f59e0b';
+    }
+  }
 }
 
 function restoreFromShareData(data) {
